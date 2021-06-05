@@ -1,0 +1,11 @@
+# Provider binary
+/terraform-provider-*
+
+# Terraform CLI configurations
+.terraformrc
+
+# Terraform crash logs
+crash.log
+
+# Terraform state files
+*.tfstate*
