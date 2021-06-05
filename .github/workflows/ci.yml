@@ -1,0 +1,70 @@
+name: CI
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  ci:
+    strategy:
+      # We need to be able to troubleshoot platform-specific failures.
+      fail-fast: false
+
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+          - windows-latest
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 0.15.4
+          terraform_wrapper: false
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16
+      - name: Print Go environment
+        run: go env
+      - name: Unit tests
+        run: go test ./...
+      - name: Configure integration tests
+        if: runner.os != 'Windows'
+        run: |
+          go build
+          sed "s%/path/to/terraform-provider-merge%${PWD}%" integration/fixtures/example.terraformrc \
+              | tee integration/fixtures/.terraformrc
+      - name: Configure integration tests (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          & go build
+
+          # Windows path separators (backslashes) either need escaping or
+          # replacing with sensible ones, else they're treated as escape
+          # sequences.
+          $sanitisedLocation = (Get-Location) -replace "\\", "/"
+          (Get-Content -Path .\integration\fixtures\example.terraformrc) `
+              -replace "/path/to/terraform-provider-merge", $sanitisedLocation `
+              | Set-Content -Path "integration\fixtures\.terraformrc"
+
+          # Replace symbolic links with copies of the target file, otherwise we
+          # up with text files containing the path to the target file, which
+          # doesn't parse.
+          Get-ChildItem .\integration\fixtures\ -Directory `
+              | Select-Object -ExpandProperty FullName `
+              | ForEach-Object {
+                Push-Location $_
+                Remove-Item -Path .\_providers.tf
+                Copy-Item ..\_providers.tf .\_providers.tf
+                Pop-Location
+              }
+      - name: Integration tests
+        working-directory: integration/test
+        run: go test -v
