@@ -1,0 +1,5 @@
+provider_installation {
+  dev_overrides {
+    "registry.terraform.io/LukeCarrier/merge" = "/path/to/terraform-provider-merge"
+  }
+}
